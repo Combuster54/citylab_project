@@ -47,11 +47,9 @@ add_executable(start_patrolling src/patrol.cpp)
 ament_target_dependencies(start_patrolling rclcpp nav_msgs rclcpp_action 
 geometry_msgs std_msgs  sensor_msgs robot_patrol)
 
-
 # Install executable files
 install(TARGETS
    start_patrolling
-
 )
 
 # Install launch files.
