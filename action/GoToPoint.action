@@ -1,0 +1,8 @@
+#goal
+geometry_msgs/Point32 goal_pos
+---
+#result
+bool status
+---
+#fedback
+geometry_msgs/Point32 current_pos
