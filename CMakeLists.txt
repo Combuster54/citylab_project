@@ -50,6 +50,7 @@ geometry_msgs std_msgs  sensor_msgs robot_patrol)
 # Install executable files
 install(TARGETS
    start_patrolling
+   DESTINATION lib/${PROJECT_NAME}/
 )
 
 # Install launch files.
