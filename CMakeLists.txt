@@ -69,6 +69,8 @@ install(TARGETS
    client_server
    patrol_v2
    goToPoint
+   DESTINATION lib/${PROJECT_NAME}/
+
 )
 
 # Install launch files.
