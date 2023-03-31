@@ -47,21 +47,6 @@ add_executable(start_patrolling src/patrol.cpp)
 ament_target_dependencies(start_patrolling rclcpp nav_msgs rclcpp_action 
 geometry_msgs std_msgs  sensor_msgs robot_patrol)
 
-
-add_executable(direction_server src/direction_service.cpp)
-ament_target_dependencies(direction_server rclcpp std_msgs  sensor_msgs robot_patrol)
-
-add_executable(client_server src/test_service.cpp)
-ament_target_dependencies(client_server rclcpp nav_msgs geometry_msgs std_msgs sensor_msgs robot_patrol)
-
-add_executable(patrol_v2 src/patrol_v2.cpp)
-ament_target_dependencies(patrol_v2 rclcpp nav_msgs rclcpp_action 
-geometry_msgs std_msgs  sensor_msgs robot_patrol)
-
-add_executable(goToPoint src/go_to_point_action.cpp)
-ament_target_dependencies(goToPoint rclcpp_action  rclcpp nav_msgs geometry_msgs std_msgs sensor_msgs robot_patrol)
-
-
 # Install executable files
 install(TARGETS
    start_patrolling
@@ -70,7 +55,6 @@ install(TARGETS
    patrol_v2
    goToPoint
    DESTINATION lib/${PROJECT_NAME}/
-
 )
 
 # Install launch files.
