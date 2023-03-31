@@ -29,7 +29,6 @@ public:
   int i = 0;
   using Point = robot_patrol::action::GoToPoint;
   using GoalHandlePoint = rclcpp_action::ServerGoalHandle<Point>;
-
   explicit GoToPoint(const rclcpp::NodeOptions &options = rclcpp::NodeOptions())
       : Node("gotopoint_node", options) {
 
@@ -80,7 +79,7 @@ public:
     //     "odom", 10, std::bind(&GoToPoint::odom_callback, this, _1));
 
     timer_ = this->create_wall_timer(
-        500ms, std::bind(&GoToPoint::timer_callback, this), callback_group_);
+        250ms, std::bind(&GoToPoint::timer_callback, this), callback_group_);
   }
 
 private:
@@ -95,15 +94,13 @@ private:
 
   // Subscribers
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr subscription_;
-
+  geometry_msgs::msg::Point32 last_goal_position;
   // Odom_variables
   float x = 0.0;
   float y = 0.0;
   float theta = 0.0;
   bool timer_on = false;
-  bool start_odom = false;
-  bool feedback = false;
-
+  bool first_goal = true;
   void timer_callback() {
 
     if (timer_on) {
@@ -114,10 +111,10 @@ private:
       feedback->current_pos.z = this->theta;
 
       goal_handle_timer->publish_feedback(feedback);
-      RCLCPP_INFO(
-          this->get_logger(), "[Feedback] -> [X,Y,Theta] = [ %f, %f, %f ]",
-          feedback->current_pos.x, feedback->current_pos.y, feedback->current_pos.z);
-      sleep(1);
+      RCLCPP_INFO(this->get_logger(),
+                  "[Feedback] -> [X,Y,Theta] = [ %f, %f, %f ]",
+                  feedback->current_pos.x, feedback->current_pos.y,
+                  feedback->current_pos.z);
     }
   }
   rclcpp_action::GoalResponse
@@ -127,7 +124,6 @@ private:
     RCLCPP_INFO(this->get_logger(),
                 "[Action_Server] Goal recieved, time to move!");
 
-    this->start_odom = true;
     (void)uuid;
     return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
   }
@@ -149,12 +145,9 @@ private:
     this->goal_handle_timer = goal_handle;
   }
 
-
   void execute(const std::shared_ptr<GoalHandlePoint> goal_handle) {
 
     RCLCPP_INFO(this->get_logger(), "Executing goal");
-
-    rclcpp::Rate loop_rate(0.05);
 
     const auto goal = goal_handle->get_goal();
 
@@ -162,32 +155,61 @@ private:
 
     goal_position = goal->goal_pos;
 
-    auto x_goal = goal_position.x;
-    auto y_goal = goal_position.y;
-    auto theta_goal = (goal_position.z * 3.1416) / 180;
-    RCLCPP_INFO(this->get_logger(), "theta_goal = %f", theta_goal);
+    // auto x_goal = goal_position.x;
+    // auto y_goal = goal_position.y;
+    // auto theta_goal = (goal_position.z * 3.1416) / 180;
+    goal_position.z = (goal_position.z * 3.1416) / 180;
+
+    RCLCPP_INFO(this->get_logger(), "theta_goal = %f", goal_position.z);
 
     //  dx = 0.600417
     //  dy = -0.001389
-    auto dx = x_goal - this->x;
-    auto dy = y_goal - this->y;
+    float dx;
+    float dy;
+    double euclidian_dist;
 
-    if (abs(dx) < 0.0099) {
-      dx = 0.0;
+    if (first_goal) {
+
+      RCLCPP_INFO(this->get_logger(), "First goal");
+
+      dx = goal_position.x - this->x;
+      dy = goal_position.y - this->y;
+
+      if (abs(dx) < 0.0099) {
+        dx = 0.0;
+      }
+      if (abs(dy) < 0.0099) {
+        dy = 0.0;
+      }
+
+    } else {
+
+      RCLCPP_INFO(this->get_logger(), "Another goal");
+
+      dx = goal_position.x - last_goal_position.x;
+      dy = goal_position.y - last_goal_position.y;
+      if (abs(dx) < 0.0099) {
+        dx = 0.0;
+      }
+      if (abs(dy) < 0.0099) {
+        dy = 0.0;
+      }
     }
-    if (abs(dy) < 0.0099) {
-      dy = 0.0;
-    }
+
+    euclidian_dist = sqrt(pow(goal_position.x - this->x, 2) +
+                          pow(goal_position.y - this->y, 2));
+    first_goal = false;
 
     RCLCPP_INFO(this->get_logger(), "dx = %f", dx);
     RCLCPP_INFO(this->get_logger(), "dy = %f", dy);
 
-    double euclidian_dist =
-        sqrt(pow(x_goal - this->x, 2) + pow(y_goal - this->y, 2));
+    int T = (float(euclidian_dist / 0.05) * 1000 * 1000);
+    T = T - (T % 10000);
 
-    long int T = int(float(euclidian_dist / 0.05));
+    RCLCPP_INFO(this->get_logger(), "T = %i", T);
 
-    auto angle = atan(dy / dx);
+    float angle = atan(dy / dx);
+
     RCLCPP_INFO(this->get_logger(), "angle = %f", angle);
     auto result = std::make_shared<Point::Result>();
     auto move = geometry_msgs::msg::Twist();
@@ -196,12 +218,6 @@ private:
     bool rotate = false;
     bool forward_goal = false;
     bool goal_rotate = false;
-    // Second goal
-    //  dx = 0.018744
-    //   dy = -0.309289
-    //  angle = -1.510268
-
-    this->feedback = true;
     this->timer_on = true;
     while (true) {
 
@@ -212,7 +228,7 @@ private:
         return;
       }
 
-      // Rotate to goal
+      // First Flag
       if (!rotate) {
         // angle = -0.003524
         // No rotations
@@ -255,12 +271,16 @@ private:
           }
         }
       }
-      // Second Flag
+      // Second Flag Real Robot
       if (!(forward_goal) && rotate) {
-        move.linear.x = 0.05;
-        move.angular.z = 0.0;
-        publisher_->publish(move);
-        sleep(T); // sleep but not move
+
+        while (T > 0) {
+          move.linear.x = 0.05;
+          move.angular.z = 0.0;
+          publisher_->publish(move);
+          usleep(1000);
+          T -= 1000;
+        }
         move.linear.x = 0.0;
         move.angular.z = 0.0;
         publisher_->publish(move);
@@ -271,15 +291,15 @@ private:
       // Third Flag
       if (!(goal_rotate) && rotate && forward_goal) {
 
-        if (theta_goal == 0) {
+        if (goal_position.z == 0) {
           goal_rotate = true;
           RCLCPP_INFO(this->get_logger(), "Last flag complete");
         } // RIGHT
-        else if (theta_goal < 0) {
+        else if (goal_position.z < 0) {
           RCLCPP_INFO_ONCE(this->get_logger(), "Last flag: RIGHT");
 
-          if (!(this->theta < theta_goal - 0.035 &&
-                this->theta > theta_goal + 0.035)) {
+          if (!(this->theta < goal_position.z - 0.035 &&
+                this->theta > goal_position.z + 0.035)) {
             move.linear.x = 0.0;
             move.angular.z = -0.1;
             publisher_->publish(move);
@@ -295,8 +315,8 @@ private:
         else {
           RCLCPP_INFO_ONCE(this->get_logger(), "Last flag: LEFT");
 
-          if (!(this->theta > theta_goal - 0.035 &&
-                this->theta < theta_goal + 0.035)) {
+          if (!(this->theta > goal_position.z - 0.035 &&
+                this->theta < goal_position.z + 0.035)) {
             move.linear.x = 0.0;
             move.angular.z = 0.1;
             publisher_->publish(move);
@@ -317,14 +337,13 @@ private:
     }
 
     this->timer_on = false;
-    this->feedback = false;
+    last_goal_position = goal->goal_pos;
     move.linear.x = 0.0;
     move.angular.z = 0.0;
     publisher_->publish(move);
     result->status = true;
     goal_handle->succeed(result);
-    RCLCPP_INFO(this->get_logger(), "[STATUS GOAL] = %d", result->status);
-    RCLCPP_INFO(this->get_logger(), "Goal reached!");
+    RCLCPP_INFO(this->get_logger(), "[STATUS GOAL] = %s", result->status ? "TRUE" : "FALSE");
   }
 
   void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg) {
@@ -351,7 +370,9 @@ int main(int argc, char **argv) {
 
   rclcpp::init(argc, argv);
   auto goToPointActionServer = std::make_shared<GoToPoint>();
-  rclcpp::spin(goToPointActionServer);
+  rclcpp::executors::MultiThreadedExecutor executor;
+  executor.add_node(goToPointActionServer);
+  executor.spin();
   rclcpp::shutdown();
 
   return 0;

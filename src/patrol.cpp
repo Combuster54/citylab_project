@@ -7,9 +7,6 @@
 #include <sstream>
 #include <string>
 
-#include "robot_patrol/action/go_to_point.hpp"
-#include "robot_patrol/srv/get_direction.hpp"
-
 #include "geometry_msgs/msg/detail/twist__struct.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
@@ -19,8 +16,6 @@
 #include <unistd.h>
 
 using namespace std::chrono_literals;
-
-using GetDirectionMsg = robot_patrol::srv::GetDirection;
 
 using std::placeholders::_1;
 
@@ -58,7 +53,7 @@ private:
 
   void time_to_move() {
 
-    filterScan();
+    filterScan(); // change values of min_front_laser, etc...
     // FRONT
     if (this->min_front_laser > 0.4 &&
         (this->min_right_laser > 0.2 && this->min_right_laser < 0.3)) {
@@ -84,6 +79,7 @@ private:
       this->velocity.linear.x = 0.0;
       this->velocity.angular.z = 0.0;
       publisher_->publish(this->velocity);
+      
       timer_move->cancel();
     }
   }
@@ -131,6 +127,6 @@ int main(int argc, char **argv) {
 
   executor.spin();
   rclcpp::shutdown();
-
+  patrol->stop();
   return 0;
 } // Main

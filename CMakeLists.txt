@@ -50,6 +50,10 @@ geometry_msgs std_msgs  sensor_msgs robot_patrol)
 # Install executable files
 install(TARGETS
    start_patrolling
+   direction_server
+   client_server
+   patrol_v2
+   goToPoint
    DESTINATION lib/${PROJECT_NAME}/
 )
 
